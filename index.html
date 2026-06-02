@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>E2E Message Demo | No Cookies, No Token, No Password</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: linear-gradient(145deg, #0a0f1e 0%, #0c1222 100%);
+            font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .demo-container {
+            max-width: 1400px;
+            width: 100%;
+            background: rgba(18, 25, 45, 0.65);
+            backdrop-filter: blur(2px);
+            border-radius: 3rem;
+            padding: 1.5rem;
+            box-shadow: 0 25px 45px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+            border: 1px solid rgba(72, 187, 255, 0.2);
+        }
+        .status-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            background: #00000055;
+            border-radius: 2rem;
+            padding: 0.6rem 1.2rem;
+            margin-bottom: 1.8rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            backdrop-filter: blur(4px);
+            gap: 10px;
+        }
+        .badge {
+            background: #00e6b2;
+            color: #001e1a;
+            padding: 0.2rem 0.8rem;
+            border-radius: 2rem;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        .e2e-tag {
+            background: #2b5f8a;
+            color: white;
+            padding: 0.2rem 0.8rem;
+            border-radius: 2rem;
+            font-family: monospace;
+        }
+        .chat-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+        }
+        .chat-card {
+            flex: 1;
+            min-width: 280px;
+            background: #0f172ad9;
+            backdrop-filter: blur(8px);
+            border-radius: 2rem;
+            padding: 1rem;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.4);
+            border: 1px solid #2d3a5e;
+            transition: all 0.2s;
+        }
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #2d3a5e;
+            padding-bottom: 0.6rem;
+            margin-bottom: 1rem;
+            font-weight: bold;
+            font-size: 1.3rem;
+        }
+        .messages-area {
+            height: 360px;
+            overflow-y: auto;
+            background: #01040980;
+            border-radius: 1.2rem;
+            padding: 0.8rem;
+            margin-bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+        .msg {
+            background: #1e2a3a;
+            padding: 8px 12px;
+            border-radius: 1.2rem;
+            max-width: 90%;
+            word-break: break-word;
+            color: #e2e8f0;
+            box-shadow: 0 1px 2px black;
+        }
+        .msg-sent {
+            background: #0f5e6b;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .msg-received {
+            background: #2d374b;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .encrypted-badge {
+            font-size: 0.6rem;
+            opacity: 0.7;
+            margin-top: 3px;
+            font-family: monospace;
+        }
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        input {
+            flex: 1;
+            background: #010409;
+            border: 1px solid #2d3e6e;
+            padding: 10px 14px;
+            border-radius: 2rem;
+            color: white;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        button {
+            background: #2c6e9e;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 2rem;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: 0.1s linear;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        .auto-panel {
+            margin-top: 1.2rem;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+        .danger-btn {
+            background: #9e3e2c;
+        }
+        .warning-btn {
+            background: #3b5e3a;
+        }
+        .key-badge {
+            background: #00000077;
+            border-radius: 2rem;
+            padding: 0.3rem 1rem;
+            font-family: monospace;
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 12px;
+            word-break: break-all;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.7rem;
+            margin-top: 1.5rem;
+            opacity: 0.6;
+            color: #bbd9ff;
+        }
+    </style>
+</head>
+<body>
+<div class="demo-container">
+    <div class="status-bar">
+        <span>🚀 E2E संदेश डेमो</span>
+        <span>🔒 एंड-टू-एंड सुरक्षित</span>
+        <span>🍪 No Cookies</span>
+        <span>🎟️ No Token</span>
+        <span>🔑 No Password</span>
+        <span class="badge">✅ DEMO MODE ON</span>
+    </div>
+    <div class="chat-panel" id="chatRoot">
+        <!-- Alice and Bob will be injected here, but we build directly -->
+    </div>
+    <div class="auto-panel">
+        <button id="startAutoBtn" class="warning-btn">⚡ AUTO MESSAGES (NONSTOP)</button>
+        <button id="stopAutoBtn" class="danger-btn">⏹️ STOP</button>
+        <button id="clearAllBtn">🧹 Clear Chats</button>
+    </div>
+    <div class="key-badge" id="keyDisplay">
+        🔑 Session E2E Key (AES-GCM) — generated in browser
+    </div>
+    <footer>
+        📡 Connection Active | ⚡ Fast Messaging | लगातार संदेश चल रहे हैं
+    </footer>
+</div>
+
+<script>
+    (function(){
+        // ======================== CRYPTO SETUP ========================
+        let encryptionKey = null;   // CryptoKey
+        let rawKeyBytes = null;     // for display (first few bytes)
+        
+        // Generate a random 256-bit AES key (no password, no token)
+        async function initCryptoKey() {
+            const key = await crypto.subtle.generateKey(
+                { name: "AES-GCM", length: 256 },
+                true,
+                ["encrypt", "decrypt"]
+            );
+            encryptionKey = key;
+            // export raw for showing fingerprint only (demo)
+            const raw = await crypto.subtle.exportKey("raw", key);
+            rawKeyBytes = new Uint8Array(raw);
+            const shortKey = Array.from(rawKeyBytes.slice(0,6)).map(b => b.toString(16).padStart(2,'0')).join(':');
+            document.getElementById("keyDisplay").innerHTML = `🔑 साझा E2E कुंजी (AES-256-GCM) | fingerprint: ${shortKey}... (नो पासवर्ड, नो टोकन)`;
+            return key;
+        }
+        
+        // Encrypt message (returns base64 + iv)
+        async function encryptMessage(plainText) {
+            if (!encryptionKey) await initCryptoKey();
+            const iv = crypto.getRandomValues(new Uint8Array(12)); // 96-bit IV
+            const encoded = new TextEncoder().encode(plainText);
+            const ciphertext = await crypto.subtle.encrypt(
+                { name: "AES-GCM", iv: iv },
+                encryptionKey,
+                encoded
+            );
+            const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+            combined.set(iv, 0);
+            combined.set(new Uint8Array(ciphertext), iv.length);
+            return btoa(String.fromCharCode(...combined));
+        }
+        
+        // Decrypt message from base64
+        async function decryptMessage(encryptedBase64) {
+            if (!encryptionKey) await initCryptoKey();
+            const binary = atob(encryptedBase64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const iv = bytes.slice(0, 12);
+            const ciphertext = bytes.slice(12);
+            try {
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: iv },
+                    encryptionKey,
+                    ciphertext
+                );
+                return new TextDecoder().decode(decrypted);
+            } catch(e) {
+                console.error("Decrypt failed", e);
+                return "🔒 [अवैध एन्क्रिप्टेड संदेश]";
+            }
+        }
+        
+        // ================ UI & MESSAGE STATE ================
+        // Two chat identities: Alice and Bob
+        let messages = {
+            alice: [],   // each: { text, fromSelf, encryptedRaw? }
+            bob: []
+        };
+        
+        // We'll store raw encrypted messages for realistic simulation
+        // But we will display decrypted text after decrypting.
+        // Actually: When Alice sends message, we encrypt -> store encrypted string -> then decrypt on Bob's side.
+        // For simplicity: both sides share same encryption key, so each chat box will decrypt messages intended for them.
+        // Let's define function to add a new message from Alice to Bob.
+        // Sender: "alice" or "bob"
+        
+        async function sendMessage(from, plainText) {
+            if (!plainText.trim()) return;
+            const encryptedPayload = await encryptMessage(plainText);
+            // Store the encrypted message in a global timeline
+            const msgObj = {
+                id: Date.now() + Math.random(),
+                sender: from,
+                encrypted: encryptedPayload,
+                timestamp: new Date().toLocaleTimeString()
+            };
+            // Deliver to other party instantly (simulate realtime)
+            await deliverToOther(msgObj);
+            // Also add to sender's own chat as "sent" (decrypted)
+            addMessageToUI(from, plainText, true, msgObj.timestamp);
+        }
+        
+        async function deliverToOther(msgObj) {
+            const other = msgObj.sender === 'alice' ? 'bob' : 'alice';
+            // Decrypt the message to show in receiver's chat
+            try {
+                const decryptedText = await decryptMessage(msgObj.encrypted);
+                addMessageToUI(other, decryptedText, false, msgObj.timestamp);
+            } catch(e) {
+                addMessageToUI(other, "🔐 एन्क्रिप्टेड (डिक्रिप्ट विफल)", false, msgObj.timestamp);
+            }
+        }
+        
+        // Update UI for a specific user
+        function addMessageToUI(user, displayText, isFromSelf, timestamp) {
+            const container = document.getElementById(`${user}-messages`);
+            if (!container) return;
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `msg ${isFromSelf ? 'msg-sent' : 'msg-received'}`;
+            msgDiv.innerHTML = `<div>${escapeHtml(displayText)}</div><div class="encrypted-badge">🔒 E2E ${isFromSelf ? 'भेजा' : 'प्राप्त'}</div>`;
+            container.appendChild(msgDiv);
+            // auto scroll to bottom
+            container.scrollTop = container.scrollHeight;
+            
+            // Also store for clear history later (optional)
+            // No persistent storage needed.
+        }
+        
+        function escapeHtml(str) {
+            return str.replace(/[&<>]/g, function(m) {
+                if(m === '&') return '&amp;';
+                if(m === '<') return '&lt;';
+                if(m === '>') return '&gt;';
+                return m;
+            }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+                return c;
+            });
+        }
+        
+        // Clear individual chat UI
+        function clearChats() {
+            const aliceMsgDiv = document.getElementById('alice-messages');
+            const bobMsgDiv = document.getElementById('bob-messages');
+            if(aliceMsgDiv) aliceMsgDiv.innerHTML = '';
+            if(bobMsgDiv) bobMsgDiv.innerHTML = '';
+            // add a system message
+            const sysMsg = (div, txt) => {
+                const sys = document.createElement('div');
+                sys.style.textAlign = 'center';
+                sys.style.fontSize = '0.7rem';
+                sys.style.opacity = '0.7';
+                sys.style.padding = '6px';
+                sys.innerText = txt;
+                div.appendChild(sys);
+            };
+            sysMsg(aliceMsgDiv, '✨ चैट साफ़ हो गई (कुंजी सुरक्षित)');
+            sysMsg(bobMsgDiv, '✨ चैट साफ़ हो गई (कुंजी सुरक्षित)');
+        }
+        
+        // ================ AUTO NONSTOP MESSAGES ================
+        let autoInterval = null;
+        let autoActive = false;
+        const autoMessagesList = [
+            "🚀 नॉनस्टॉप E2E संदेश!", "🔒 एन्क्रिप्टेड", "⚡ फास्ट मैसेजिंग",
+            "🍪 कोई कुकी नहीं", "🎟️ बिना टोकन", "✅ डेमो मोड एक्टिव",
+            "📡 कनेक्शन सक्रिय", "🤖 ऑटो संदेश", "🔁 लगातार चल रहा है"
+        ];
+        
+        function startAutoMessages() {
+            if(autoInterval) clearInterval(autoInterval);
+            autoActive = true;
+            autoInterval = setInterval(async () => {
+                if(!autoActive) return;
+                // randomly choose sender: alice or bob
+                const sender = Math.random() > 0.5 ? 'alice' : 'bob';
+                const randomMsg = autoMessagesList[Math.floor(Math.random() * autoMessagesList.length)] + ` ⏱️${new Date().toLocaleTimeString()}`;
+                await sendMessage(sender, randomMsg);
+            }, 1800);
+        }
+        
+        function stopAutoMessages() {
+            if(autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+            }
+            autoActive = false;
+        }
+        
+        // ================ BUILD UI ================
+        function buildUI() {
+            const panel = document.getElementById('chatRoot');
+            panel.innerHTML = `
+                <div class="chat-card">
+                    <div class="chat-header">
+                        <span>👩‍💻 Alice</span>
+                        <span style="font-size:0.8rem;">🔑 E2E ready</span>
+                    </div>
+                    <div id="alice-messages" class="messages-area">
+                        <div style="text-align:center; opacity:0.6;">🔒 एंड-टू-एंड सुरक्षित</div>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="aliceInput" placeholder="Alice को संदेश... (E2E एन्क्रिप्टेड)" autocomplete="off">
+                        <button id="aliceSendBtn">📨 भेजें</button>
+                    </div>
+                </div>
+                <div class="chat-card">
+                    <div class="chat-header">
+                        <span>👨‍💻 Bob</span>
+                        <span style="font-size:0.8rem;">🔑 E2E ready</span>
+                    </div>
+                    <div id="bob-messages" class="messages-area">
+                        <div style="text-align:center; opacity:0.6;">🔒 एंड-टू-एंड सुरक्षित</div>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="bobInput" placeholder="Bob को संदेश... (E2E एन्क्रिप्टेड)" autocomplete="off">
+                        <button id="bobSendBtn">📨 भेजें</button>
+                    </div>
+                </div>
+            `;
+            
+            // attach events
+            document.getElementById('aliceSendBtn').onclick = async () => {
+                const input = document.getElementById('aliceInput');
+                const txt = input.value;
+                if(txt) {
+                    await sendMessage('alice', txt);
+                    input.value = '';
+                }
+            };
+            document.getElementById('bobSendBtn').onclick = async () => {
+                const input = document.getElementById('bobInput');
+                const txt = input.value;
+                if(txt) {
+                    await sendMessage('bob', txt);
+                    input.value = '';
+                }
+            };
+            // allow enter key
+            document.getElementById('aliceInput').addEventListener('keypress', (e) => {
+                if(e.key === 'Enter') document.getElementById('aliceSendBtn').click();
+            });
+            document.getElementById('bobInput').addEventListener('keypress', (e) => {
+                if(e.key === 'Enter') document.getElementById('bobSendBtn').click();
+            });
+        }
+        
+        // initial setup
+        window.onload = async () => {
+            await initCryptoKey();
+            buildUI();
+            // small intro demo message
+            setTimeout(async () => {
+                await sendMessage('alice', 'नमस्ते Bob! यह E2E एन्क्रिप्टेड संदेश है 🔐');
+                await sendMessage('bob', 'हाँ Alice! कोई कुकी, टोकन या पासवर्ड नहीं। बस एंड-टू-एंड');
+            }, 500);
+            
+            document.getElementById('startAutoBtn').onclick = () => {
+                startAutoMessages();
+            };
+            document.getElementById('stopAutoBtn').onclick = () => {
+                stopAutoMessages();
+            };
+            document.getElementById('clearAllBtn').onclick = () => {
+                clearChats();
+            };
+        };
+    })();
+</script>
+</body>
+</html>

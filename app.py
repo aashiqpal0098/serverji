@@ -3,37 +3,44 @@ import asyncio
 import edge_tts
 import requests
 import os
+from PIL import Image
 from moviepy.editor import AudioFileClip, ImageClip
 
-# 🎙️ Voice Setup
-VOICES = {
-    "Male (Madhur)": "hi-IN-MadhurNeural",
-    "Female (Swara)": "hi-IN-SwaraNeural"
-}
-
-# Functions
-def generate_ai_story(topic):
-    if not topic:
-        return "Pehle koi topic likhein!"
-    try:
-        url = f"https://text.pollinations.ai/prompt/Write%20a%20short%20Hindi%20story%20in%20Roman%20English%20(Hinglish)%20about%20{topic}.%20Make%20it%20interesting%20and%205-6%20lines%20long."
-        response = requests.get(url)
-        return response.text
-    except:
-        return "Story generate karne mein error aaya."
+# Voice setup
+VOICES = {"Male (Madhur)": "hi-IN-MadhurNeural", "Female (Swara)": "hi-IN-SwaraNeural"}
 
 def generate_ai_image(prompt):
-    if not prompt:
-        return None
+    if not prompt: return None
+    # Pollinations image API
+    url = f"https://image.pollinations.ai/prompt/{prompt.replace(' ', '%20')}?width=720&height=1280&seed=42"
     try:
-        url = f"https://image.pollinations.ai/prompt/{prompt}?width=720&height=1280"
-        response = requests.get(url)
-        img_path = "ai_generated_face.jpg"
-        with open(img_path, "wb") as f:
-            f.write(response.content)
-        return img_path
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            with open("temp_image.jpg", "wb") as f:
+                f.write(response.content)
+            return "temp_image.jpg"
     except:
         return None
+    return None
+
+st.set_page_config(page_title="AI Studio", layout="centered")
+st.title("🌟 AI Video Studio")
+
+# UI Components
+topic = st.text_input("Topic likhein")
+story = st.text_area("Kahani", height=150)
+img_prompt = st.text_input("Photo ka description (English)")
+
+if st.button("Generate"):
+    with st.spinner("Processing..."):
+        img_path = generate_ai_image(img_prompt)
+        
+        if img_path:
+            st.image(img_path)
+            # Audio aur Video processing yahan karein
+            st.success("Image mil gayi! Ab audio generate kar rahe hain...")
+        else:
+            st.error("Image generate nahi ho saki, please fir se try karein.")
 
 async def generate_audio(text, voice, output_path):
     communicate = edge_tts.Communicate(text, VOICES[voice])

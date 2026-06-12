@@ -3,38 +3,153 @@ import requests
 import subprocess
 import os
 import re
-import base64
+import time
+import io
 
-st.set_page_config(page_title="AASHIQ AI VIDEO", layout="wide")
-st.title("💖 AASHIQ AI VIDEO")
+st.set_page_config(page_title="AASHIQ AI VIDEO - Auto", layout="wide")
+st.title("💖 AASHIQ AI VIDEO - Fully Automated")
+st.markdown("---
 
-# ------------------- JavaScript for Voice Typing (Browser native) -------------------
-st.markdown("""
-### 🎤 बोलकर कहानी लिखें
-नीचे दिए बटन पर क्लिक करें, माइक्रोफोन अनुमति दें, और हिंदी में बोलें।
-""")
-voice_html = """
-<script>
-function startVoiceInput() {
-    var recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    recognition.lang = 'hi-IN';
-    recognition.interimResults = false;
-    recognition.onresult = function(event) {
-        var text = event.results[0][0].transcript;
-        var textarea = parent.document.querySelector('textarea[data-testid="stMarkdown"] textarea');
-        if(textarea) {
-            textarea.value += text + " ";
-            textarea.dispatchEvent(new Event('input', {bubbles: true}));
-        }
-    };
-    recognition.start();
-}
-</script>
-<button onclick="startVoiceInput()" style="background-color:#FF4B4B; color:white; padding:10px 20px; border:none; border-radius:5px; font-size:16px;">🎙️ बोलकर लिखें</button>
-"""
-st.components.v1.html(voice_html, height=80)
+### ✍️ Step 1: Write Your Story
+Your story will be used to automatically generate a matching image and a natural voiceover.
+")
 
-# ------------------- Story Input -------------------
+# --- Story Input Section ---
+if 'story' not in st.session_state:
+    st.session_state.story = ""
+
+story_text = st.text_area(
+    "✍️ **Write or paste your Hindi story here:**",
+    value=st.session_state.story,
+    height=200
+)
+
+# --- Voice Selection ---
+st.markdown("### 🎙️ Step 2: Choose Your Voice")
+col1, col2 = st.columns(2)
+with col1:
+    voice_choice = st.radio(
+        "Select Speaker:",
+        ["Female (Natural)", "Male (Natural)"],
+        horizontal=True,
+        index=0
+    )
+with col2:
+    st.caption("Powered by Pollinations.ai for natural-sounding Hindi speech")
+
+# --- Main Generate Button ---
+if st.button("🚀 **Generate Full AI Video**", type="primary", use_container_width=True):
+    if not story_text.strip():
+        st.error("❌ Please write a story first.")
+    else:
+        # Step 1: Automatically generate an AI image prompt from the story
+        with st.status("🤖 **Step 1/3: Analyzing Story & Generating Image...**", expanded=True) as status:
+            st.write("Extracting key theme from your story...")
+            # For this example, we're using the first 200 characters as a prompt.
+            # For better results, you could integrate a free LLM to summarize.
+            image_prompt = story_text[:200].strip() + ", beautiful scene, cinematic lighting, high quality"
+            st.write(f"**Generated Prompt:** {image_prompt}")
+
+            st.write("Generating image with Pollinations.ai...")
+            img_url = f"https://image.pollinations.ai/prompt/{image_prompt.replace(' ', '%20')}?width=720&height=1280&nologo=true"
+            
+            try:
+                img_response = requests.get(img_url, timeout=20)
+                if img_response.status_code == 200:
+                    img_path = "temp_scene.jpg"
+                    with open(img_path, "wb") as f:
+                        f.write(img_response.content)
+                    st.session_state['auto_img_path'] = img_path
+                    st.image(img_path, caption="Automatically Generated Scene", use_container_width=True)
+                    status.update(label="✅ Image Generated!", state="complete")
+                else:
+                    st.error("Image generation failed. Please try again.")
+                    st.stop()
+            except Exception as e:
+                st.error(f"Network error during image generation: {e}")
+                st.stop()
+            time.sleep(1)
+
+        # Step 2: Generate natural-sounding Hindi audio (Online)
+        with st.status("🎤 **Step 2/3: Creating Natural Voiceover...**", expanded=True) as status:
+            st.write(f"Generating {voice_choice} voice with Pollinations TTS...")
+            # Determine voice selection for Pollinations API
+            voice_param = "female" if "Female" in voice_choice else "male"
+            tts_url = f"https://text.pollinations.ai/{story_text}?voice={voice_param}&language=hi"
+            try:
+                audio_response = requests.get(tts_url, timeout=30)
+                if audio_response.status_code == 200:
+                    with open("voiceover.mp3", "wb") as f:
+                        f.write(audio_response.content)
+                    st.audio("voiceover.mp3", format="audio/mp3")
+                    status.update(label="✅ Voiceover Ready!", state="complete")
+                else:
+                    st.error(f"TTS API error: {audio_response.status_code}")
+                    st.stop()
+            except Exception as e:
+                st.error(f"Network error during TTS generation: {e}")
+                st.stop()
+            time.sleep(1)
+
+        # Step 3: Combine everything into a video
+        with st.status("🎬 **Step 3/3: Assembling Final Video...**", expanded=True) as status:
+            st.write("Calculating audio duration...")
+            # Get audio duration using ffprobe
+            dur_cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", "voiceover.mp3"]
+            result = subprocess.run(dur_cmd, capture_output=True, text=True)
+            duration = float(result.stdout.strip())
+
+            st.write("Creating subtitles...")
+            # Create SRT subtitles from story
+            sentences = re.split(r'(?<=[।!?;]) +', story_text)
+            if not sentences:
+                sentences = [story_text]
+            seg_duration = duration / len(sentences)
+            
+            def format_srt_time(seconds):
+                h = int(seconds // 3600)
+                m = int((seconds % 3600) // 60)
+                s = int(seconds % 60)
+                ms = int((seconds % 1) * 1000)
+                return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+            
+            with open("subtitles.srt", "w", encoding="utf-8") as srt:
+                for i, line in enumerate(sentences):
+                    start = i * seg_duration
+                    end = (i+1) * seg_duration
+                    srt.write(f"{i+1}\n")
+                    srt.write(f"{format_srt_time(start)} --> {format_srt_time(end)}\n")
+                    srt.write(f"{line.strip()}\n\n")
+
+            st.write("Rendering video with ffmpeg...")
+            # Create video with ffmpeg
+            cmd = [
+                "ffmpeg", "-y",
+                "-loop", "1",
+                "-i", st.session_state['auto_img_path'],
+                "-i", "voiceover.mp3",
+                "-vf", f"subtitles=subtitles.srt:force_style='FontName=Arial,FontSize=24,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H80000000,Alignment=10'",
+                "-c:v", "libx264",
+                "-c:a", "aac",
+                "-pix_fmt", "yuv420p",
+                "-shortest",
+                "final_video.mp4"
+            ]
+            subprocess.run(cmd, check=True)
+            status.update(label="✅ Video Ready!", state="complete")
+
+        st.balloons()
+        st.success("🎉 **Your AI video is ready!**")
+        with open("final_video.mp4", "rb") as f:
+            video_bytes = f.read()
+        st.video(video_bytes)
+        st.download_button(
+            "💾 **Download Your AASHIQ Video**",
+            data=video_bytes,
+            file_name="AASHIQ_AI_Video.mp4",
+            mime="video/mp4",
+            use_container_width=True
+)# ------------------- Story Input -------------------
 st.subheader("📝 अपनी कहानी लिखें (या ऊपर बोलें)")
 if 'story' not in st.session_state:
     st.session_state.story = ""

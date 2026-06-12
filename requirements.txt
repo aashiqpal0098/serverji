@@ -3,5 +3,4 @@ edge-tts
 requests
 pillow
 moviepy
-SpeechRecognition        # This line is still needed
-openai-whisper          # For Whisper (Option 2)
+SpeechRecognition

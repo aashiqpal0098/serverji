@@ -8,7 +8,7 @@ import io
 
 st.set_page_config(page_title="AASHIQ AI VIDEO - Auto", layout="wide")
 st.title("💖 AASHIQ AI VIDEO - Fully Automated")
-st.markdown("---
+st.markdown("---")
 
 ### ✍️ Step 1: Write Your Story
 Your story will be used to automatically generate a matching image and a natural voiceover.

@@ -1,12 +1,12 @@
 import streamlit as st
 import requests
 import speech_recognition as sr
-from moviepy.editor import AudioFileClip, ImageClip, CompositeVideoClip, TextClip
+import subprocess
 import os
 import io
 import re
-import subprocess
 import tempfile
+import json
 
 # ------------------- Page Config -------------------
 st.set_page_config(page_title="AASHIQ AI VIDEO", page_icon="🎬", layout="wide")
@@ -49,42 +49,43 @@ def speech_to_text_from_audio_bytes(audio_bytes):
     except Exception as e:
         return f"❌ गलती: {e}"
 
-# ---------- Audio Generation (Sync) ----------
+# ---------- Audio Generation ----------
 def generate_audio_sync(text, voice, output_path):
     cmd = f"edge-tts --voice {VOICES[voice]} --text \"{text}\" --write-media {output_path}"
     subprocess.run(cmd, shell=True, check=True)
 
-# ---------- Caption Function using moviepy TextClip ----------
-def add_captions_moviepy(image_path, audio_path, story_text, output_path):
-    # Audio clip
-    audio_clip = AudioFileClip(audio_path)
-    duration = audio_clip.duration
-
-    # Image clip
-    img_clip = ImageClip(image_path).set_duration(duration).resize(height=720)
-
-    # Split story into sentences
+# ---------- Create SRT subtitles from story ----------
+def create_srt_from_story(story_text, audio_duration, srt_path):
     sentences = re.split(r'(?<=[।!?;]) +', story_text)
     if not sentences:
         sentences = [story_text]
-    seg_dur = duration / len(sentences)
+    seg_dur = audio_duration / len(sentences)
+    
+    with open(srt_path, 'w', encoding='utf-8') as f:
+        for i, line in enumerate(sentences):
+            start = i * seg_dur
+            end = (i + 1) * seg_dur
+            # SRT time format: HH:MM:SS,mmm
+            start_str = f"{int(start//3600):02d}:{int((start%3600)//60):02d}:{int(start%60):02d},{int((start%1)*1000):03d}"
+            end_str = f"{int(end//3600):02d}:{int((end%3600)//60):02d}:{int(end%60):02d},{int((end%1)*1000):03d}"
+            f.write(f"{i+1}\n{start_str} --> {end_str}\n{line}\n\n")
 
-    # Create text clips for each sentence
-    txt_clips = []
-    for i, line in enumerate(sentences):
-        start = i * seg_dur
-        # Use method='label' to avoid ImageMagick dependency
-        txt = TextClip(line, fontsize=40, color='white', stroke_color='black', stroke_width=2, method='label')
-        txt = txt.set_position(('center', 'center')).set_start(start).set_duration(seg_dur)
-        txt_clips.append(txt)
-
-    # Composite video
-    final = CompositeVideoClip([img_clip, *txt_clips]).set_audio(audio_clip)
-    final.write_videofile(output_path, fps=24, codec='libx264', audio_codec='aac')
-
-    # Cleanup
-    audio_clip.close()
-    final.close()
+# ---------- Create video using ffmpeg (image + audio + subtitles) ----------
+def create_video_with_ffmpeg(image_path, audio_path, srt_path, output_path):
+    # ffmpeg command: loop image, add audio, burn subtitles
+    cmd = [
+        "ffmpeg", "-y",
+        "-loop", "1",
+        "-i", image_path,
+        "-i", audio_path,
+        "-vf", f"subtitles={srt_path}:force_style='FontSize=24,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H80000000,Alignment=10'",
+        "-c:v", "libx264",
+        "-c:a", "aac",
+        "-pix_fmt", "yuv420p",
+        "-shortest",
+        output_path
+    ]
+    subprocess.run(cmd, check=True)
 
 # ------------------- UI Layout -------------------
 col1, col2 = st.columns(2)
@@ -137,13 +138,27 @@ if st.button("🚀 CREATE AASHIQ VIDEO (with auto captions)", type="primary", us
     if not story_text or not st.session_state.image_path:
         st.error("⚠️ Kripya pehle kahani aur photo generate karein!")
     else:
-        with st.spinner("🎥 Video ban raha hai... 2-3 minute lagega..."):
+        with st.spinner("🎥 Video ban raha hai... 1-2 minute lagega..."):
             try:
                 audio_path = "voice.mp3"
+                srt_path = "subtitles.srt"
                 video_path = "final_output.mp4"
 
+                # Generate audio
                 generate_audio_sync(story_text, voice_choice, audio_path)
-                add_captions_moviepy(st.session_state.image_path, audio_path, story_text, video_path)
+
+                # Get audio duration using ffprobe
+                result = subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", audio_path],
+                    capture_output=True, text=True
+                )
+                audio_duration = float(result.stdout.strip())
+
+                # Create SRT subtitles
+                create_srt_from_story(story_text, audio_duration, srt_path)
+
+                # Create video with subtitles
+                create_video_with_ffmpeg(st.session_state.image_path, audio_path, srt_path, video_path)
 
                 st.success("✅ Video Taiyar Hai!")
 
@@ -152,8 +167,12 @@ if st.button("🚀 CREATE AASHIQ VIDEO (with auto captions)", type="primary", us
                 st.video(video_bytes)
                 st.download_button("⬇️ Download AASHIQ Video", data=video_bytes, file_name="AASHIQ_Video.mp4", mime="video/mp4")
 
-                os.remove(audio_path)
-                os.remove(video_path)
+                # Cleanup
+                for f in [audio_path, srt_path, video_path]:
+                    if os.path.exists(f):
+                        os.remove(f)
 
+            except subprocess.CalledProcessError as e:
+                st.error(f"ffmpeg error: {e.stderr if e.stderr else e}")
             except Exception as e:
                 st.error(f"Error: {e}")

@@ -1,7 +1,2 @@
 portaudio19-dev
 ffmpeg
-libjpeg-dev
-zlib1g-dev
-libpng-dev
-libtiff-dev
-libfreetype6-dev
